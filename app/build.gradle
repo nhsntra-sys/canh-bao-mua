@@ -1,0 +1,18 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'vn.vas.canhbaomua'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'vn.vas.canhbaomua'
+        minSdk 26
+        targetSdk 34
+        versionCode((System.getenv("GITHUB_RUN_NUMBER") ?: "1") as int)
+        versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildTypes { release { minifyEnabled false; signingConfig signingConfigs.debug } }
+    lint { abortOnError false; checkReleaseBuilds false }
+}
