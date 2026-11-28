@@ -28,7 +28,7 @@ public class Forecast {
             {"gem_global", "GEM (Canada)"}};
     static final double WET = 0.1; // mm/giờ
 
-    public static class Hour { public String time; public int prob, agree, n; public double mm; }
+    public static class Hour { public String time; public int prob, agree, n; public double mm; public String hres = "-"; }
 
     static SharedPreferences sp(Context c) { return c.getSharedPreferences("cb_fc", Context.MODE_PRIVATE); }
 
@@ -44,7 +44,7 @@ public class Forecast {
         for (String[] m : MODELS) {
             try {
                 String u = String.format(Locale.US, "https://ensemble-api.open-meteo.com/v1/ensemble?latitude=%.4f&longitude=%.4f"
-                        + "&hourly=precipitation&models=%s&forecast_days=3&timezone=auto", lat, lon, m[0]);
+                        + "&hourly=precipitation&models=%s&forecast_days=3&timezone=auto&cell_selection=nearest", lat, lon, m[0]);
                 JSONObject hr = new JSONObject(Net.getText(u)).getJSONObject("hourly");
                 JSONArray time = hr.getJSONArray("time");
                 List<JSONArray> mem = new ArrayList<>();
@@ -69,6 +69,21 @@ public class Forecast {
             } catch (Exception ignored) { }
         }
         if (okModels.isEmpty()) return; // giữ dữ liệu cũ
+        Map<String, Double> hres = new LinkedHashMap<>();
+        String hresName = "";
+        for (String[] hm : new String[][]{{"ecmwf_ifs", "ECMWF 9 km"}, {"best_match", "mô hình chi tiết nhất"}}) {
+            try {
+                String u = String.format(Locale.US, "https://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f"
+                        + "&hourly=precipitation&models=%s&forecast_days=3&timezone=auto&cell_selection=nearest", lat, lon, hm[0]);
+                JSONObject hr = new JSONObject(Net.getText(u)).getJSONObject("hourly");
+                JSONArray time = hr.getJSONArray("time"), pr = null;
+                Iterator<String> it = hr.keys();
+                while (it.hasNext()) { String k = it.next(); if (k.startsWith("precipitation")) pr = hr.getJSONArray(k); }
+                if (pr == null) continue;
+                for (int i = 0; i < time.length(); i++) if (!pr.isNull(i)) hres.put(time.getString(i), pr.optDouble(i, 0));
+                if (!hres.isEmpty()) { hresName = hm[1]; break; }
+            } catch (Exception ignored) { }
+        }
         StringBuilder b = new StringBuilder();
         for (Map.Entry<String, List<Double>> e : fracs.entrySet()) {
             List<Double> f = e.getValue();
@@ -79,10 +94,11 @@ public class Forecast {
             Collections.sort(v);
             double med = v.isEmpty() ? 0 : v.get(v.size() / 2);
             b.append(e.getKey()).append(';').append(Math.round(mean * 100)).append(';')
-                    .append(String.format(Locale.US, "%.1f", med)).append(';').append(agree).append(';').append(f.size()).append('\n');
+                    .append(String.format(Locale.US, "%.1f", med)).append(';').append(agree).append(';').append(f.size()).append(';')
+                    .append(hres.containsKey(e.getKey()) ? String.format(Locale.US, "%.1f", hres.get(e.getKey())) : "-").append('\n');
         }
         s.edit().putString("data", b.toString()).putLong("t", System.currentTimeMillis())
-                .putString("models", String.join(", ", okModels)).putInt("members", members)
+                .putString("models", String.join(", ", okModels)).putString("hres", hresName).putInt("members", members)
                 .putFloat("lat", (float) lat).putFloat("lon", (float) lon).apply();
     }
 
@@ -95,7 +111,7 @@ public class Forecast {
             if (p[0].substring(0, 13).compareTo(now) < 0) continue;
             Hour h = new Hour();
             h.time = p[0]; h.prob = Integer.parseInt(p[1]); h.mm = Double.parseDouble(p[2]);
-            h.agree = Integer.parseInt(p[3]); h.n = Integer.parseInt(p[4]);
+            h.agree = Integer.parseInt(p[3]); h.n = Integer.parseInt(p[4]); if (p.length > 5) h.hres = p[5];
             out.add(h);
         }
         return out;
@@ -124,6 +140,11 @@ public class Forecast {
         List<Hour> hs = hours(c);
         if (hs.isEmpty()) return "Chưa có dữ liệu dự báo (cần mạng).";
         StringBuilder b = new StringBuilder();
+        Prefs pf = new Prefs(c);
+        if (pf.statusTime() > 0 && System.currentTimeMillis() - pf.statusTime() < 30 * 60_000L)
+            b.append("ĐÚNG TOẠ ĐỘ CÔNG TRÌNH, 1–2 GIỜ TỚI (radar):\n").append(pf.title()).append("\n\n");
+        String hn = sp(c).getString("hres", "");
+        if (!hn.isEmpty()) b.append("Cột “ô 9km” = lượng mưa ").append(hn).append(" tại ô sát công trình nhất.\n\n");
         // Khung giờ dễ mưa nhất trong ngày hôm nay
         String today = hs.get(0).time.substring(0, 10);
         int bs = -1, be = -1, peak = 0;
@@ -145,8 +166,8 @@ public class Forecast {
                 day = d;
                 b.append(d.equals(today) ? "— Hôm nay —\n" : "— Ngày " + d.substring(8, 10) + "/" + d.substring(5, 7) + " —\n");
             }
-            b.append(String.format(Locale.US, "%sh %s %3d%%  %s mm  %d/%d mô hình\n",
-                    h.time.substring(11, 13), bar(h.prob), h.prob, h.mm < 0.05 ? "  0" : String.format(Locale.US, "%.1f", h.mm), h.agree, h.n));
+            b.append(String.format(Locale.US, "%sh %s %3d%%  %d/%d MH  ô 9km: %s mm\n",
+                    h.time.substring(11, 13), bar(h.prob), h.prob, h.agree, h.n, h.hres));
         }
         return b.toString();
     }
