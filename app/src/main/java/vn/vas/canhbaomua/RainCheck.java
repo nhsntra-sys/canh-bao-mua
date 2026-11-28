@@ -71,7 +71,7 @@ public class RainCheck {
         double lat = p.lat(), lon = p.lon();
         int lead = p.lead(), sens = Math.max(0, Math.min(2, p.sens()));
         int thr = new int[]{200, 150, 100}[sens];
-        double fracThr = new double[]{0.25, 0.15, 0.08}[sens];
+        double fracThr = new double[]{0.6, 0.5, 0.35}[sens];
 
         Nowcast.Result a = null;
         String rErr = null;
@@ -112,9 +112,9 @@ public class RainCheck {
         if (m != null) d.append(String.format(Locale.US, "Năng lượng dông CAPE %.0f%s.", m.cape, m.cape > 1500 ? " (dễ có dông)" : ""));
 
         String title;
-        Integer eta = a == null ? null : (a.raining ? Integer.valueOf(0) : (a.etaAdv != null ? a.etaAdv : a.etaClose));
+        Integer eta = a == null ? null : (a.raining ? Integer.valueOf(0) : a.etaAdv);
         if (lvl.equals("r")) title = eta == null ? "SẮP MƯA" : (eta == 0 ? "ĐANG MƯA!" : "MƯA SAU ~" + eta + " PHÚT");
-        else if (lvl.equals("y")) title = "Chú ý – có thể mưa";
+        else if (lvl.equals("y")) title = (a != null && a.near != null && a.near <= 25) ? String.format(Locale.US, "Có mưa cách %.0f km – chưa hướng vào công trình", a.near) : "Chú ý – có thể mưa";
         else title = "An toàn – chưa thấy mưa tới";
 
         status(c, p, lvl, title, d.toString());

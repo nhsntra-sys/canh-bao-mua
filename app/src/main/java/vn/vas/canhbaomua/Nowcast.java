@@ -6,7 +6,7 @@ import java.util.List;
 /** Dự báo tức thời từ ảnh radar: tìm hướng/tốc độ mây mưa và thời gian tới công trình. Thuần Java. */
 public class Nowcast {
     public static final int Z = 7, TS = 256, R = 100, W = 2 * R + 1;
-    public static final double SITE_KM = 3;
+    public static final double SITE_KM = 1.0; // ~1 điểm ảnh radar quanh đúng toạ độ
 
     public static class Frame { public long t; public byte[] m; }
 
@@ -98,7 +98,7 @@ public class Nowcast {
         out.raining = fracInCircle(L.m, R, R, SITE_KM / kmpp) >= fracThr;
         if (out.hasV) {
             for (int t = 0; t <= 120; t += 5) {
-                double px = R - out.vx * t, py = R - out.vy * t, rp = (SITE_KM + 0.05 * t) / kmpp;
+                double px = R - out.vx * t, py = R - out.vy * t, rp = (SITE_KM + 0.02 * t) / kmpp;
                 if (px < 0 || py < 0 || px >= W || py >= W) break;
                 if (fracInCircle(L.m, px, py, rp) >= fracThr) { out.etaAdv = t; break; }
             }
@@ -122,8 +122,8 @@ public class Nowcast {
             if (slope < -0.1) out.etaClose = (int) Math.round(out.near / -slope);
         }
         String lvl = "g";
-        if (out.raining || (out.etaAdv != null && out.etaAdv <= lead)
-                || (out.etaClose != null && out.etaClose <= lead && out.near <= 50)) lvl = "r";
+        // Chỉ báo động khi mưa đang ở / đang đi trúng toạ độ công trình
+        if (out.raining || (out.etaAdv != null && out.etaAdv <= lead)) lvl = "r";
         else if ((out.near != null && out.near <= 25) || (out.etaAdv != null && out.etaAdv <= lead + 30)) lvl = "y";
         out.lvl = lvl;
         return out;
